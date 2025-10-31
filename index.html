@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Weather</title>
+    <style>
+      /* ---------- Reset & Base ---------- */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        font-size: 100%;
+      }
+      body,
+      html {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        color: #fff;
+        background: linear-gradient(135deg, #87ceeb, #4682b4); /* fallback */
+        transition: background 1.2s ease;
+      }
+
+      /* ---------- Layout ---------- */
+      #app {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: clamp(0.75rem, 2vw, 1.5rem);
+      }
+
+      .header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .title {
+        font-size: clamp(1.6rem, 5vw, 2.2rem);
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      #citySelect {
+        min-width: 180px;
+        padding: 0.6rem 1rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 0.75rem;
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23fff' d='M0 0l6 8 6-8z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+      }
+      #citySelect option {
+        color: #222;
+      }
+
+      .weather-card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 1.5rem;
+        padding: clamp(1rem, 4vw, 2rem);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      }
+
+      .location {
+        font-size: clamp(1.3rem, 4vw, 1.8rem);
+        margin-bottom: 0.4rem;
+      }
+
+      .temp {
+        font-size: clamp(4rem, 12vw, 6rem);
+        font-weight: 300;
+        margin: 0.5rem 0;
+        line-height: 1;
+      }
+
+      .icon {
+        width: clamp(80px, 20vw, 120px);
+        height: auto;
+        margin: 0.8rem 0;
+      }
+
+      .desc {
+        font-size: clamp(1.2rem, 4vw, 1.6rem);
+        text-transform: capitalize;
+        margin-bottom: 1rem;
+      }
+
+      .details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 0.8rem;
+        width: 100%;
+        margin-top: 1rem;
+      }
+
+      .detail {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.75rem;
+        font-size: 0.9rem;
+      }
+      .detail-label {
+        opacity: 0.8;
+        font-size: 0.75rem;
+      }
+      .detail-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+      }
+
+      .msg {
+        font-size: 1.1rem;
+      }
+
+      .error {
+        background: rgba(255, 107, 107, 0.25);
+        color: #ff6b6b;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      /* ---------- Backgrounds per condition ---------- */
+      .bg-clear {
+        background: linear-gradient(135deg, #ffd700, #ffa500);
+      }
+      .bg-clouds {
+        background: linear-gradient(135deg, #87ceeb, #4682b4);
+      }
+      .bg-rain {
+        background: linear-gradient(135deg, #4b79a1, #283e51);
+      }
+      .bg-drizzle {
+        background: linear-gradient(135deg, #4b79a1, #283e51);
+      }
+      .bg-thunder {
+        background: linear-gradient(135deg, #2c3e50, #1a1a1a);
+      }
+      .bg-snow {
+        background: linear-gradient(135deg, #e6e9f0, #a7c5e0);
+      }
+      .bg-mist {
+        background: linear-gradient(135deg, #bdc3c7, #2c3e50);
+      }
+      .bg-fog {
+        background: linear-gradient(135deg, #bdc3c7, #2c3e50);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <h1 class="title">Weather</h1>
+        <select id="citySelect">
+          <option>Detecting…</option>
+        </select>
+      </header>
+
+      <section class="weather-card" id="weatherCard">
+        <div class="msg">Fetching data…</div>
+      </section>
+    </div>
+
+    <script>
+      // ==== CONFIG ====
+      const API_KEY = "b8b63c8a0b570c37e1be9805c456e5f2"; // <-- put your OpenWeatherMap key here
+      const cities = [
+        { name: "Current Location", lat: null, lon: null },
+        { name: "New York", lat: 40.7128, lon: -74.006 },
+        { name: "London", lat: 51.5074, lon: -0.1278 },
+        { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
+        { name: "Paris", lat: 48.8566, lon: 2.3522 },
+        { name: "Sydney", lat: -33.8688, lon: 151.2093 },
+        { name: "Mumbai", lat: 19.076, lon: 72.8777 },
+        { name: "Dubai", lat: 25.2048, lon: 55.2708 },
+        { name: "Singapore", lat: 1.3521, lon: 103.8198 },
+        { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
+      ];
+
+      // ==== DOM ELEMENTS ====
+      const citySelect = document.getElementById("citySelect");
+      const weatherCard = document.getElementById("weatherCard");
+
+      // ==== POPULATE SELECT ====
+      cities.forEach((c, i) => {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = c.name;
+        citySelect.appendChild(opt);
+      });
+
+      // ==== FETCH WEATHER ====
+      async function fetchWeather(lat, lon, cityName = "") {
+        let url;
+        if (lat !== null && lon !== null) {
+          url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+        } else {
+          url = `https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${API_KEY}&units=metric`;
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Weather data unavailable");
+        return res.json();
+      }
+
+      // ==== RENDER WEATHER ====
+      function render(data) {
+        const icon = `https://openweathermap.org/img/wn/${data.weather[0].icon}@4x.png`;
+        const cond = data.weather[0].main;
+
+        weatherCard.innerHTML = `
+            <div class="location">${data.name}, ${data.sys.country}</div>
+            <div class="temp">${Math.round(data.main.temp)}°C</div>
+            <img src="${icon}" alt="${
+          data.weather[0].description
+        }" class="icon">
+            <div class="desc">${data.weather[0].description}</div>
+
+            <div class="details">
+                <div class="detail">
+                    <div class="detail-label">Feels like</div>
+                    <div class="detail-value">${Math.round(
+                      data.main.feels_like
+                    )}°C</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">Humidity</div>
+                    <div class="detail-value">${data.main.humidity}%</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">Wind</div>
+                    <div class="detail-value">${data.wind.speed} m/s</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">Pressure</div>
+                    <div class="detail-value">${data.main.pressure} hPa</div>
+                </div>
+            </div>
+        `;
+
+        // ---- background per condition ----
+        const bgMap = {
+          Clear: "bg-clear",
+          Clouds: "bg-clouds",
+          Rain: "bg-rain",
+          Drizzle: "bg-drizzle",
+          Thunderstorm: "bg-thunder",
+          Snow: "bg-snow",
+          Mist: "bg-mist",
+          Fog: "bg-fog",
+        };
+        document.body.className = bgMap[cond] || "bg-clouds";
+      }
+
+      // ==== ERROR / LOADING ====
+      function showMessage(html, isError = false) {
+        weatherCard.innerHTML = `<div class="msg ${
+          isError ? "error" : ""
+        }">${html}</div>`;
+      }
+
+      // ==== GEOLOCATION ====
+      function loadCurrentLocation() {
+        if (!navigator.geolocation) {
+          showMessage("Geolocation not supported", true);
+          loadCity(cities[1]); // fallback
+          return;
+        }
+        showMessage("Getting your location…");
+        navigator.geolocation.getCurrentPosition(
+          (pos) => loadWeather(pos.coords.latitude, pos.coords.longitude),
+          () => {
+            showMessage("Location denied – using New York", true);
+            loadCity(cities[1]);
+          }
+        );
+      }
+
+      // ==== LOAD BY COORDS ====
+      async function loadWeather(lat, lon) {
+        try {
+          const data = await fetchWeather(lat, lon);
+          render(data);
+        } catch (e) {
+          showMessage(e.message, true);
+        }
+      }
+
+      // ==== LOAD BY CITY OBJECT ====
+      async function loadCity(city) {
+        if (city.name === "Current Location") {
+          loadCurrentLocation();
+          return;
+        }
+        try {
+          const data = await fetchWeather(city.lat, city.lon);
+          render(data);
+        } catch (e) {
+          showMessage(e.message, true);
+        }
+      }
+
+      // ==== SELECT HANDLER ====
+      citySelect.addEventListener("change", (e) => {
+        const idx = e.target.value;
+        if (idx === "") return;
+        loadCity(cities[idx]);
+      });
+
+      // ==== INIT ====
+      function init() {
+        if (API_KEY === "YOUR_API_KEY_HERE") {
+          showMessage("Add your OpenWeatherMap API key in the script", true);
+          return;
+        }
+        citySelect.value = "0";
+        loadCurrentLocation();
+      }
+
+      document.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
