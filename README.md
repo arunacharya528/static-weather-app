@@ -1,1 +1,1 @@
-# arunacharya255.github.io
+# Static weather app
